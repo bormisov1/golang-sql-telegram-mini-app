@@ -11,18 +11,18 @@ services:
       - TELEGRAM_BOT_TOKEN=your-telegram-bot-token
       - DB_HOST=db
       - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=your-password
-      - DB_NAME=your-database
+      - DB_USER=appuser
+      - DB_PASSWORD=appuser
+      - DB_NAME=golang_sql_telegram_mini_app
     depends_on:
       - db
 
   db:
     image: postgres:15
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: your-password
-      POSTGRES_DB: your-database
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: appuser
+      POSTGRES_DB: golang_sql_telegram_mini_app
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
