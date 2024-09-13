@@ -1,12 +1,21 @@
-// config/config.go
 package config
 
 import (
-    "database/sql"
-    _ "github.com/lib/pq" // Используем драйвер PostgreSQL
+	"database/sql"
+	"fmt"
+	_ "github.com/lib/pq"
+	"os"
 )
 
 func ConnectDB() (*sql.DB, error) {
-    connStr := "user=youruser dbname=yourdb sslmode=disable"
-    return sql.Open("postgres", connStr)
+	user := os.Getenv("DB_USER")
+	password := os.Getenv("DB_PASSWORD")
+	dbname := os.Getenv("DB_NAME")
+	host := os.Getenv("DB_HOST")
+	port := os.Getenv("DB_PORT")
+
+	connStr := fmt.Sprintf("user=%s password=%s dbname=%s host=%s port=%s sslmode=disable",
+		user, password, dbname, host, port)
+
+	return sql.Open("postgres", connStr)
 }
