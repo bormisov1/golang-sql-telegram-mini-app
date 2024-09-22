@@ -1,13 +1,239 @@
-<!-- /templates/miniapp.html -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Telegram Mini App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D Strategy Game with Camera Follow</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        #debugInfo {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: monospace;
+            background-color: rgba(0,0,0,0.5);
+            padding: 10px;
+        }
+    </style>
 </head>
 <body>
-    <h1>Welcome to Telegram Mini App!</h1>
-    <p>This is a simple HTML page served via the Telegram bot.</p>
+<canvas id="gameCanvas"></canvas>
+<div id="debugInfo"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  const debugInfo = document.getElementById('debugInfo');
+  function updateDebugInfo(info) {
+    debugInfo.innerHTML = JSON.stringify(info, null, 2);
+  }
+
+  // Game setup
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({canvas: document.getElementById('gameCanvas')});
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  const platformWidth = 10;
+  const platformLength = 40;
+  const platformSections = [];
+  const walls = [];
+  const wallHeight = 2;
+
+  function createTruck() {
+    const truckMaterial = new THREE.MeshBasicMaterial({ color: 0x888888 });
+
+    // Main body of the truck
+    const bodyGeometry = new THREE.BoxGeometry(2, 1, 1);
+    const body = new THREE.Mesh(bodyGeometry, truckMaterial);
+    body.position.set(0, 0.5, 0);
+
+    // Cabin of the truck
+    const cabinGeometry = new THREE.BoxGeometry(1, 0.75, 0.75);
+    const cabin = new THREE.Mesh(cabinGeometry, truckMaterial);
+    cabin.position.set(0.5, 1, 0);
+
+    // Create a group to hold all parts of the truck
+    const truck = new THREE.Group();
+    truck.add(body);
+    truck.add(cabin);
+
+    return truck;
+  }
+
+  function createPlatformSection(zPos) {
+    const groundGeometry = new THREE.PlaneGeometry(platformWidth, platformLength);
+    const groundMaterial = new THREE.MeshBasicMaterial({color: 0x999999});
+    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.z = zPos;
+    scene.add(ground);
+    platformSections.push(ground);
+
+    // Add boundary walls along the left and right edges of the platform
+    const wallMaterial = new THREE.MeshBasicMaterial({color: 0x666666});
+    const boundaryLeft = new THREE.Mesh(new THREE.BoxGeometry(1, wallHeight, platformLength), wallMaterial);
+    const boundaryRight = new THREE.Mesh(new THREE.BoxGeometry(1, wallHeight, platformLength), wallMaterial);
+
+    boundaryLeft.position.set(-platformWidth / 2, wallHeight / 2, zPos);
+    boundaryRight.position.set(platformWidth / 2, wallHeight / 2, zPos);
+
+    scene.add(boundaryLeft);
+    scene.add(boundaryRight);
+    walls.push(boundaryLeft, boundaryRight);
+
+    // Randomly add walls as obstacles
+    for (let i = 0; i < 5; i++) {
+      const obstacleGeometry = new THREE.BoxGeometry(1, wallHeight, 1);
+      const obstacleMaterial = new THREE.MeshBasicMaterial({color: 0x333333});
+      const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+
+      obstacle.position.set(
+        Math.random() * platformWidth - platformWidth / 2,
+        wallHeight / 2,
+        zPos + (Math.random() * platformLength - platformLength / 2)
+      );
+      scene.add(obstacle);
+      walls.push(obstacle);
+    }
+  }
+
+
+  // Create initial platform sections
+  for (let i = 0; i < 6; i++) {
+    createPlatformSection(i * platformLength);
+  }
+
+  // Player setup
+  // const geometry = new THREE.BoxGeometry(1, 1, 1);
+  // const material = new THREE.MeshBasicMaterial({color: 0x00ff00});
+  const player = createTruck();
+  player.position.set(0, 0.5, 0);
+  scene.add(player);
+
+  // Camera offset to follow player
+  const cameraOffset = new THREE.Vector3(0, 10, -15);  // Behind the player
+
+  // Player movement
+  const moveSpeed = 0.1;
+  const scrollSpeed = 0.3;
+  let moveDirection = 0;  // Only allow movement left and right
+  let gameOver = false;
+
+  // Event listener for screen touch/click
+  document.addEventListener('pointerdown', (event) => {
+    if (gameOver) {
+      location.reload(); // Restart the game
+    }
+    const screenWidth = window.innerWidth;
+    const clickX = event.clientX;
+
+    if (clickX < screenWidth / 2) {
+      moveDirection = 1;
+    } else {
+      moveDirection = -1;
+    }
+  });
+
+  // Stop movement when the pointer is released
+  document.addEventListener('pointerup', () => {
+    moveDirection = 0;  // Stop moving when the screen is not being touched/clicked
+  });
+
+  // Keyboard controls for left and right movement
+  document.addEventListener('keydown', (event) => {
+    if (gameOver) {
+      location.reload(); // Restart the game
+    }
+    if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
+      moveDirection = -1;
+    } else if (event.code === 'ArrowRight' || event.code === 'KeyD') {
+      moveDirection = 1;
+    }
+  });
+
+  document.addEventListener('keyup', (event) => {
+    if (event.code === 'ArrowLeft' || event.code === 'KeyA' || event.code === 'ArrowRight' || event.code === 'KeyD') {
+      moveDirection = 0;
+    }
+  });
+
+  function checkCollision(player, walls) {
+    for (let wall of walls) {
+      const playerBox = new THREE.Box3().setFromObject(player);
+      const wallBox = new THREE.Box3().setFromObject(wall);
+      if (playerBox.intersectsBox(wallBox)) {
+        gameOver = true;
+        updateDebugInfo({status: 'Game Over! Press any key to restart'});
+        return true;
+      }
+    }
+    return false;
+  }
+
+  let distanceSinceLastPlatform = 0;
+
+  function animate() {
+    if (gameOver) return;
+
+    requestAnimationFrame(animate);
+
+    // Move the platform forward continuously
+    player.position.z += scrollSpeed;
+
+    // Move the player left or right based on input
+    player.position.x += moveDirection * moveSpeed;
+
+    if (checkCollision(player, walls)) {
+      return; // Stop movement if collision occurs
+    }
+
+    // Platform generation based on scroll speed and time elapsed
+    distanceSinceLastPlatform += scrollSpeed;
+    if (distanceSinceLastPlatform >= platformLength) {
+      const lastPlatform = platformSections[platformSections.length - 1];
+      createPlatformSection(lastPlatform.position.z + platformLength);
+      distanceSinceLastPlatform = 0;
+
+      // Remove the old platform sections to free memory
+      const platformToRemove = platformSections.shift();
+      let wallToRemove = walls.shift();
+      while (wallToRemove.position.z < platformToRemove.position.z + platformLength / 2) {
+        scene.remove(wallToRemove);
+        wallToRemove = walls.shift();
+      }
+      scene.remove(platformToRemove);
+    }
+
+    // Update the camera to follow the player
+    camera.position.copy(player.position).add(cameraOffset);
+    // camera.position.copy(new THREE.Vector3(player.position.x, player.position.y, 10)).add(cameraOffset);
+    camera.lookAt(player.position);
+
+    renderer.render(scene, camera);
+  }
+
+  animate();
+
+  // Handle window resizing
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  updateDebugInfo({status: 'Scene initialized with infinite platform, random obstacles, and player movement'});
+</script>
 </body>
 </html>

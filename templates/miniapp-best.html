@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D Game - Joystick Controls</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        #debugInfo {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: monospace;
+            background-color: rgba(0,0,0,0.5);
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="debugInfo"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        const debugInfo = document.getElementById('debugInfo');
+        function updateDebugInfo(info) {
+            debugInfo.innerHTML = JSON.stringify(info, null, 2);
+        }
+
+        // Game setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({canvas: document.getElementById('gameCanvas')});
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        // Add a simple ground plane
+        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const groundMaterial = new THREE.MeshBasicMaterial({color: 0x999999});
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        scene.add(ground);
+
+        // Add a simple cube for the player
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const material = new THREE.MeshBasicMaterial({color: 0x00ff00});
+        const player = new THREE.Mesh(geometry, material);
+        player.position.set(0, 0.5, 0);
+        scene.add(player);
+
+        // Set up camera
+        camera.position.set(0, 5, 10);
+        camera.lookAt(player.position);
+
+        // Player movement
+        const moveSpeed = 0.1;
+        const turnSpeed = 0.05;
+        let playerRotation = 0;
+        let moveDirection = new THREE.Vector2(0, 0);
+
+        // Touch controls
+        let leftTouchStartX = 0;
+        let leftTouchStartY = 0;
+        let rightTouchStartX = 0;
+        let isLeftTouching = false;
+        const halfWidth = window.innerWidth / 2;
+
+        document.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            for (let touch of e.changedTouches) {
+                if (touch.clientX < halfWidth) {
+                    leftTouchStartX = touch.clientX;
+                    leftTouchStartY = touch.clientY;
+                    isLeftTouching = true;
+                } else {
+                    rightTouchStartX = touch.clientX;
+                }
+            }
+        }, {passive: false});
+
+        document.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            for (let touch of e.changedTouches) {
+                if (touch.clientX < halfWidth) {
+                    const deltaX = touch.clientX - leftTouchStartX;
+                    const deltaY = touch.clientY - leftTouchStartY;
+                    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                    const maxDistance = 50; // maximum joystick distance
+                    
+                    if (distance > 0) {
+                        moveDirection.x = deltaX / distance;
+                        moveDirection.y = deltaY / distance;
+                        
+                        // Normalize movement speed based on joystick distance
+                        const speedFactor = Math.min(distance / maxDistance, 1);
+                        moveDirection.multiplyScalar(speedFactor);
+                    }
+                } else {
+                    const deltaX = touch.clientX - rightTouchStartX;
+                    playerRotation -= deltaX * 0.01;
+                    rightTouchStartX = touch.clientX;
+                }
+            }
+            updateCamera();
+            
+            updateDebugInfo({
+                event: 'touchmove',
+                moveDirection: moveDirection,
+                playerX: player.position.x,
+                playerZ: player.position.z,
+                rotation: playerRotation
+            });
+        }, {passive: false});
+
+        document.addEventListener('touchend', (e) => {
+            for (let touch of e.changedTouches) {
+                if (touch.clientX < halfWidth) {
+                    isLeftTouching = false;
+                    moveDirection.set(0, 0);
+                }
+            }
+        }, {passive: false});
+
+        // Keyboard controls
+        document.addEventListener('keydown', onKeyDown, false);
+        document.addEventListener('keyup', onKeyUp, false);
+
+        function onKeyDown(event) {
+            switch (event.code) {
+                case 'ArrowUp':
+                case 'KeyW':
+                    moveDirection.y = -1; break;
+                case 'ArrowLeft':
+                case 'KeyA':
+                    moveDirection.x = -1; break;
+                case 'ArrowDown':
+                case 'KeyS':
+                    moveDirection.y = 1; break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    moveDirection.x = 1; break;
+            }
+        }
+
+        function onKeyUp(event) {
+            switch (event.code) {
+                case 'ArrowUp':
+                case 'KeyW':
+                case 'ArrowDown':
+                case 'KeyS':
+                    moveDirection.y = 0; break;
+                case 'ArrowLeft':
+                case 'KeyA':
+                case 'ArrowRight':
+                case 'KeyD':
+                    moveDirection.x = 0; break;
+            }
+        }
+
+        // Mouse controls for turning
+        let isMouseDown = false;
+        let lastMouseX = 0;
+
+        document.addEventListener('mousedown', (e) => {
+            isMouseDown = true;
+            lastMouseX = e.clientX;
+        });
+
+        document.addEventListener('mouseup', () => {
+            isMouseDown = false;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isMouseDown) {
+                const deltaX = e.clientX - lastMouseX;
+                playerRotation -= deltaX * 0.01;
+                lastMouseX = e.clientX;
+                updateCamera();
+            }
+        });
+
+        function updateCamera() {
+            camera.position.x = player.position.x - Math.sin(playerRotation) * 10;
+            camera.position.z = player.position.z - Math.cos(playerRotation) * 10;
+            camera.lookAt(player.position);
+        }
+
+        // Game loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Update player position based on moveDirection
+            if (moveDirection.length() > 0) {
+                player.position.x -= moveDirection.y * Math.sin(playerRotation) * moveSpeed;
+                player.position.z -= moveDirection.y * Math.cos(playerRotation) * moveSpeed;
+                player.position.x -= moveDirection.x * Math.cos(playerRotation) * moveSpeed;
+                player.position.z += moveDirection.x * Math.sin(playerRotation) * moveSpeed;
+                updateCamera();
+            }
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Handle window resizing
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        updateDebugInfo({status: 'Scene initialized with joystick-like mobile controls'});
+    </script>
+</body>
+</html>

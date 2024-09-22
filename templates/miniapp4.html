@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile 3D Pseudo Game</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            touch-action: none;
+            background-color: #87ceeb;
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let touchStartX = 0, touchStartY = 0;
+        let touchCurrentX = 0, touchCurrentY = 0;
+        let player = { x: canvas.width / 2, y: canvas.height / 2, speed: 5 };
+        let wsCharacter = { x: canvas.width / 4, y: canvas.height / 4, speed: 5 };
+        const delta = 10;  // Distance tolerance to snap to new position
+
+        const ws = new WebSocket('wss://example.com/game');
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'direction') {
+                // Move wsCharacter based on direction input
+                wsCharacter.x += data.dx * wsCharacter.speed;
+                wsCharacter.y += data.dy * wsCharacter.speed;
+            } else if (data.type === 'position') {
+                // Snap wsCharacter to new position if it's far enough
+                if (Math.hypot(wsCharacter.x - data.x, wsCharacter.y - data.y) > delta) {
+                    wsCharacter.x = data.x;
+                    wsCharacter.y = data.y;
+                }
+            }
+        };
+
+        function drawGround() {
+            ctx.fillStyle = "#228B22";  // Ground color
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawPlayer(x, y, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, 20, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function movePlayer() {
+            const dx = touchCurrentX - touchStartX;
+            const dy = touchCurrentY - touchStartY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance > 0) {
+                const normalizedX = dx / distance;
+                const normalizedY = dy / distance;
+
+                player.x += normalizedX * player.speed;
+                player.y += normalizedY * player.speed;
+            }
+        }
+
+        function update() {
+            // Move player
+            movePlayer();
+
+            // Clear canvas and draw ground
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGround();
+
+            // Draw player (controlled by touch)
+            drawPlayer(player.x, player.y, "blue");
+
+            // Draw WS character (controlled by WebSocket)
+            drawPlayer(wsCharacter.x, wsCharacter.y, "red");
+
+            requestAnimationFrame(update);
+        }
+
+        canvas.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            if (touch.clientX < canvas.width / 2) {
+                touchStartX = touch.clientX;
+                touchStartY = touch.clientY;
+                touchCurrentX = touchStartX;
+                touchCurrentY = touchStartY;
+            }
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            const touch = e.touches[0];
+            if (touch.clientX < canvas.width / 2) {
+                touchCurrentX = touch.clientX;
+                touchCurrentY = touch.clientY;
+            }
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            touchStartX = 0;
+            touchStartY = 0;
+            touchCurrentX = 0;
+            touchCurrentY = 0;
+        });
+
+        update();
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+    </script>
+</body>
+</html>

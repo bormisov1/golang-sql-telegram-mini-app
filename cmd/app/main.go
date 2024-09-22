@@ -25,10 +25,14 @@ func main() {
 	}
 	print(botToken)
 
+	//gameService := services.NewGameService()
+	//wsHandler := handlers.NewWebSocketHandler(gameService)
+
 	botService := &services.BotService{BotToken: botToken}
 	telegramHandler := &handlers.TelegramHandler{Service: *botService}
 	htmlHandler := &handlers.HTMLHandler{}
 
+	//http.HandleFunc("/ws", wsHandler.HandleWS)
 	http.HandleFunc("/users", userHandler.CreateUser)
 	http.HandleFunc("/telegram/webhook", telegramHandler.WebhookHandler) // Webhook для Telegram бота
 	http.HandleFunc("/telegram/miniapp", htmlHandler.ServeMiniApp)       // HTML страница мини-приложения
